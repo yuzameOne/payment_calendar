@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Динамический календарь</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-4">
+  <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+    <!-- Заголовок месяца с кнопками навигации -->
+    <div class="bg-blue-500 text-white py-3 px-4 flex justify-between items-center">
+      <button id="prevMonth" class="text-white hover:text-blue-200 focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <h2 id="currentMonth" class="text-center font-semibold text-lg"></h2>
+      <button id="nextMonth" class="text-white hover:text-blue-200 focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Дни недели -->
+    <div class="grid grid-cols-7 gap-1 p-2 bg-gray-100">
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Пн</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Вт</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Ср</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Чт</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Пт</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Сб</div>
+      <div class="text-center text-gray-600 font-medium text-sm py-1">Вс</div>
+    </div>
+    
+    <!-- Числа месяца -->
+    <div id="calendarDays" class="grid grid-cols-7 gap-1 p-2"></div>
+  </div>
+
+  <script>
+    // Текущая дата
+    let currentDate = new Date();
+    let currentMonth = currentDate.getMonth();
+    let currentYear = currentDate.getFullYear();
+
+    // Месяца на русском
+    const months = [
+      'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+    ];
+
+    // Дни недели на русском
+    const daysOfWeek = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+    // Функция для генерации календаря
+    function generateCalendar(month, year) {
+      const calendarDays = document.getElementById('calendarDays');
+      const currentMonthElement = document.getElementById('currentMonth');
+      
+      // Устанавливаем заголовок месяца
+      currentMonthElement.textContent = `${months[month]} ${year}`;
+      
+      // Очищаем предыдущие дни
+      calendarDays.innerHTML = '';
+      
+      // Первый день месяца
+      const firstDay = new Date(year, month, 1);
+      // Последний день месяца
+      const lastDay = new Date(year, month + 1, 0);
+      // День недели первого дня месяца (0 - воскресенье, 1 - понедельник и т.д.)
+      const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+      
+      // Число дней в предыдущем месяце
+      const prevLastDay = new Date(year, month, 0).getDate();
+      
+      // Добавляем дни предыдущего месяца
+      for (let i = firstDayOfWeek; i > 0; i--) {
+        const day = prevLastDay - i + 1;
+        const dayElement = document.createElement('div');
+        dayElement.className = 'text-center py-2 text-gray-400';
+        dayElement.textContent = day;
+        calendarDays.appendChild(dayElement);
+      }
+      
+      // Добавляем дни текущего месяца
+      for (let i = 1; i <= lastDay.getDate(); i++) {
+        const dayElement = document.createElement('div');
+        const isToday = i === currentDate.getDate() && 
+                        month === currentDate.getMonth() && 
+                        year === currentDate.getFullYear();
+        
+        dayElement.className = `text-center py-2 ${isToday ? 'bg-blue-100 font-bold' : ''}`;
+        dayElement.textContent = i;
+        calendarDays.appendChild(dayElement);
+      }
+      
+      // Добавляем дни следующего месяца
+      const totalDays = firstDayOfWeek + lastDay.getDate();
+      const remainingDays = 7 - (totalDays % 7);
+      
+      if (remainingDays < 7) {
+        for (let i = 1; i <= remainingDays; i++) {
+          const dayElement = document.createElement('div');
+          dayElement.className = 'text-center py-2 text-gray-400';
+          dayElement.textContent = i;
+          calendarDays.appendChild(dayElement);
+        }
+      }
+    }
+    
+    // Навигация по месяцам
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      generateCalendar(currentMonth, currentYear);
+    });
+    
+    document.getElementById('nextMonth').addEventListener('click', () => {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      generateCalendar(currentMonth, currentYear);
+    });
+    
+    // Инициализация календаря
+    generateCalendar(currentDate.getMonth(), currentDate.getFullYear());
+  </script>
+</body>
+</html>
