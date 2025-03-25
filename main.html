@@ -26,18 +26,68 @@
       box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
       z-index: 10;
     }
+    .payment-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    .delete-btn {
+      color: red;
+      cursor: pointer;
+    }
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .dialog {
+      background-color: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
     .toggle-option {
       transition: all 0.3s ease;
+      cursor: pointer;
+      text-align: center;
+      padding: 8px;
     }
     .toggle-option.active {
       background-color: #3B82F6;
       color: white;
     }
+    .selected-date {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .month-total {
+      text-align: center;
+      font-weight: bold;
+      padding: 1rem;
+      border-top: 1px solid #eee;
+      background-color: #f8fafc;
+    }
   </style>
 </head>
 <body class="bg-gray-50 p-4">
   <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
-    <!-- Заголовок месяца с кнопками навигации -->
     <div class="bg-blue-500 text-white py-3 px-4 flex justify-between items-center">
       <button id="prevMonth" class="text-white hover:text-blue-200 focus:outline-none">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -52,7 +102,6 @@
       </button>
     </div>
     
-    <!-- Дни недели -->
     <div class="grid grid-cols-7 gap-1 p-2 bg-gray-100">
       <div class="text-center text-gray-600 font-medium text-sm py-1">Пн</div>
       <div class="text-center text-gray-600 font-medium text-sm py-1">Вт</div>
@@ -63,73 +112,122 @@
       <div class="text-center text-gray-600 font-medium text-sm py-1">Вс</div>
     </div>
     
-    <!-- Числа месяца -->
     <div id="calendarDays" class="grid grid-cols-7 gap-1 p-2"></div>
+
+    <!-- Перемещено под календарь -->
+    <div class="month-total">
+      Итого за месяц: <span id="monthTotal">0</span> ₽
+    </div>
   </div>
 
-  <!-- Модальное окно для добавления платежа -->
-  <div id="paymentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center">
-    <div class="bg-white p-6 rounded-lg shadow-xl w-96">
-      <h3 class="text-xl font-semibold mb-4">Добавить платеж</h3>
-      <form id="paymentForm">
-        <div class="mb-4">
-          <label class="block text-gray-700 mb-2" for="amount">Сумма (₽)</label>
-          <input type="number" id="amount" class="w-full px-3 py-2 border rounded" required>
+  <div id="overlay" class="overlay hidden">
+    <div class="dialog">
+      <div id="actionsMenu" class="p-4">
+        <div class="selected-date">
+          <h3 class="text-lg font-semibold" id="selectedDateTitle"></h3>
         </div>
-        <div class="mb-4">
-          <label class="block text-gray-700 mb-2" for="description">Описание</label>
-          <input type="text" id="description" class="w-full px-3 py-2 border rounded">
+        <div class="grid grid-cols-1 gap-2">
+          <button id="addPaymentBtn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+            Добавить платеж
+          </button>
+          <button id="deletePaymentsBtn" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">
+            Удалить платежи
+          </button>
+          <button id="showDescriptionsBtn" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition">
+            Просмотреть платежи
+          </button>
         </div>
-        <div class="mb-4">
-          <label class="block text-gray-700 mb-2" for="date">Дата</label>
-          <input type="date" id="date" class="w-full px-3 py-2 border rounded" required>
+        <div class="flex justify-end mt-4">
+          <button id="cancelActions" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition">
+            Закрыть
+          </button>
         </div>
-        <div class="mb-4">
-          <label class="block text-gray-700 mb-2">Тип платежа</label>
-          <div class="flex border rounded overflow-hidden">
-            <div id="oneTimeOption" class="toggle-option flex-1 text-center py-2 cursor-pointer bg-blue-500 text-white" data-value="one-time">
-              Разовый
-            </div>
-            <div id="recurringOption" class="toggle-option flex-1 text-center py-2 cursor-pointer" data-value="recurring">
-              Постоянный
-            </div>
+      </div>
+
+      <div id="addPaymentForm" class="p-4 hidden">
+        <div class="selected-date">
+          <h3 class="text-lg font-semibold" id="formTitle"></h3>
+        </div>
+        <form id="paymentForm">
+          <div class="mb-4">
+            <label class="block text-gray-700 mb-2" for="amount">Сумма (₽)</label>
+            <input type="number" id="amount" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" required>
           </div>
-          <input type="hidden" id="paymentType" name="paymentType" value="one-time">
+          <div class="mb-4">
+            <label class="block text-gray-700 mb-2" for="description">Описание</label>
+            <input type="text" id="description" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700 mb-2">Тип платежа</label>
+            <div class="flex border rounded overflow-hidden">
+              <div id="oneTimeOption" class="toggle-option flex-1 active" data-value="one-time">
+                Разовый
+              </div>
+              <div id="recurringOption" class="toggle-option flex-1" data-value="recurring">
+                Постоянный
+              </div>
+            </div>
+            <input type="hidden" id="paymentType" name="paymentType" value="one-time">
+          </div>
+          <div class="flex space-x-2">
+            <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">
+              Добавить
+            </button>
+            <button type="button" id="cancelAdd" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition">
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="deletePaymentsList" class="p-4 hidden">
+        <div class="selected-date">
+          <h3 class="text-lg font-semibold">Выберите платежи для удаления</h3>
         </div>
+        <div id="paymentsToDelete" class="mb-4"></div>
         <div class="flex justify-end">
-          <button type="button" id="cancelPayment" class="mr-2 px-4 py-2 bg-gray-300 rounded">Отмена</button>
-          <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Сохранить</button>
+          <button id="cancelDelete" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition">
+            Назад
+          </button>
         </div>
-      </form>
+      </div>
+
+      <div id="paymentsDescriptionList" class="p-4 hidden">
+        <div class="selected-date">
+          <h3 class="text-lg font-semibold">Платежи</h3>
+        </div>
+        <div id="paymentsDescriptions" class="mb-4"></div>
+        <div class="flex justify-end">
+          <button id="cancelDescription" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition">
+            Назад
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
   <script type="module">
-    // Import the functions you need from the SDKs you need
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore.js";
 
-    // Your web app's Firebase configuration
     const firebaseConfig = {
-      тут апи и креды ищи в Fire base setiings
+     креды и апи
     };
 
-    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Текущая дата
     let currentDate = new Date();
     let currentMonth = currentDate.getMonth();
     let currentYear = currentDate.getFullYear();
+    let selectedDate = null;
+    let paymentsData = {};
 
-    // Месяца на русском
     const months = [
       'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
       'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
     ];
 
-    // Форматирование даты в YYYY-MM-DD
     function formatDate(date) {
       const d = new Date(date);
       let month = '' + (d.getMonth() + 1);
@@ -142,7 +240,20 @@
       return [year, month, day].join('-');
     }
 
-    // Получаем платежи из Firebase
+    function formatDisplayDate(date) {
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    }
+
+    function calculateMonthTotal() {
+      let total = 0;
+      Object.values(paymentsData).forEach(payments => {
+        payments.forEach(payment => {
+          total += payment.amount;
+        });
+      });
+      document.getElementById('monthTotal').textContent = total.toLocaleString();
+    }
+
     async function getPayments() {
       const payments = {};
       const querySnapshot = await getDocs(collection(db, "payments"));
@@ -150,39 +261,32 @@
         const data = doc.data();
         const date = data.date.toDate();
         const dateString = formatDate(date);
-        payments[dateString] = {
+        if (!payments[dateString]) payments[dateString] = [];
+        payments[dateString].push({
           amount: data.amount,
-          description: data.description,
+          description: data.description || '',
           paymentType: data.paymentType,
           id: doc.id
-        };
+        });
       });
       return payments;
     }
 
-    // Функция для генерации календаря
     async function generateCalendar(month, year) {
       const calendarDays = document.getElementById('calendarDays');
       const currentMonthElement = document.getElementById('currentMonth');
-      const paymentsData = await getPayments();
       
-      // Устанавливаем заголовок месяца
+      paymentsData = await getPayments();
+      calculateMonthTotal();
+      
       currentMonthElement.textContent = `${months[month]} ${year}`;
-      
-      // Очищаем предыдущие дни
       calendarDays.innerHTML = '';
       
-      // Первый день месяца
       const firstDay = new Date(year, month, 1);
-      // Последний день месяца
       const lastDay = new Date(year, month + 1, 0);
-      // День недели первого дня месяца
       const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
-      
-      // Число дней в предыдущем месяце
       const prevLastDay = new Date(year, month, 0).getDate();
       
-      // Добавляем дни предыдущего месяца
       for (let i = firstDayOfWeek; i > 0; i--) {
         const day = prevLastDay - i + 1;
         const dayElement = document.createElement('div');
@@ -194,12 +298,11 @@
         calendarDays.appendChild(dayElement);
       }
       
-      // Добавляем дни текущего месяца
       for (let i = 1; i <= lastDay.getDate(); i++) {
         const dayElement = document.createElement('div');
         const date = new Date(year, month, i);
         const dateString = formatDate(date);
-        const payment = paymentsData[dateString];
+        const payments = paymentsData[dateString] || [];
         const isToday = i === currentDate.getDate() && 
                         month === currentDate.getMonth() && 
                         year === currentDate.getFullYear();
@@ -207,11 +310,11 @@
         let paymentDisplay = '';
         let dayClasses = 'text-center py-1 day-cell rounded';
         
-        if (payment) {
+        if (payments.length > 0) {
+          const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
           paymentDisplay = `
-            <div class="payment-amount text-xs font-medium ${payment.paymentType === 'recurring' ? 'text-green-600' : 'text-red-600'}">
-              ${payment.amount.toLocaleString()} ₽
-              ${payment.paymentType === 'recurring' ? '♻️' : ''}
+            <div class="payment-amount text-xs font-medium ${payments.some(p => p.paymentType === 'recurring') ? 'text-green-600' : 'text-red-600'}">
+              ${totalAmount.toLocaleString()} ₽
             </div>
           `;
         } else {
@@ -228,19 +331,16 @@
           ${paymentDisplay}
         `;
         
-        // Добавляем обработчик клика
         dayElement.addEventListener('click', () => {
-          if (payment) {
-            let paymentInfo = `Платеж: ${payment.amount} ₽\nДата: ${dateString}\nТип: ${payment.paymentType === 'recurring' ? 'Постоянный' : 'Разовый'}`;
-            if (payment.description) paymentInfo += `\nОписание: ${payment.description}`;
-            alert(paymentInfo);
-          }
+          selectedDate = date;
+          document.getElementById('selectedDateTitle').textContent = 
+            `Платежи на ${formatDisplayDate(date)}`;
+          showActionsMenu();
         });
         
         calendarDays.appendChild(dayElement);
       }
       
-      // Добавляем дни следующего месяца
       const totalDays = firstDayOfWeek + lastDay.getDate();
       const remainingDays = 7 - (totalDays % 7);
       
@@ -256,8 +356,97 @@
         }
       }
     }
-    
-    // Навигация по месяцам
+
+    function showOverlay() {
+      document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function hideOverlay() {
+      document.getElementById('overlay').classList.add('hidden');
+    }
+
+    function showActionsMenu() {
+      hideAllForms();
+      showOverlay();
+      document.getElementById('actionsMenu').classList.remove('hidden');
+    }
+
+    function showAddForm() {
+      hideAllForms();
+      document.getElementById('addPaymentForm').classList.remove('hidden');
+      document.getElementById('formTitle').textContent = 
+        `Добавить платеж на ${formatDisplayDate(selectedDate)}`;
+    }
+
+    function showDeleteList() {
+      hideAllForms();
+      const container = document.getElementById('paymentsToDelete');
+      container.innerHTML = '';
+      
+      const dateString = formatDate(selectedDate);
+      const payments = paymentsData[dateString] || [];
+      
+      if (payments.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">Нет платежей для удаления</p>';
+      } else {
+        payments.forEach(payment => {
+          const paymentEl = document.createElement('div');
+          paymentEl.className = 'payment-item';
+          paymentEl.innerHTML = `
+            <span>${payment.amount} ₽${payment.description ? ` - ${payment.description}` : ''}</span>
+            <button class="delete-btn px-2 py-1 rounded hover:bg-red-100 transition" data-id="${payment.id}">
+              Удалить
+            </button>
+          `;
+          container.appendChild(paymentEl);
+        });
+        
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            await deleteDoc(doc(db, "payments", btn.dataset.id));
+            await generateCalendar(currentMonth, currentYear);
+            showActionsMenu();
+          });
+        });
+      }
+      
+      document.getElementById('deletePaymentsList').classList.remove('hidden');
+    }
+
+    function showDescriptions() {
+      hideAllForms();
+      const container = document.getElementById('paymentsDescriptions');
+      container.innerHTML = '';
+      
+      const dateString = formatDate(selectedDate);
+      const payments = paymentsData[dateString] || [];
+      
+      if (payments.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">Нет платежей для отображения</p>';
+      } else {
+        payments.forEach(payment => {
+          const paymentEl = document.createElement('div');
+          paymentEl.className = 'payment-item';
+          paymentEl.innerHTML = `
+            <div class="w-full">
+              <div class="font-medium">${payment.amount} ₽ <span class="text-xs ${payment.paymentType === 'recurring' ? 'text-green-600' : 'text-red-600'}">(${payment.paymentType === 'recurring' ? 'постоянный' : 'разовый'})</span></div>
+              ${payment.description ? `<div class="text-sm text-gray-600 mt-1">${payment.description}</div>` : ''}
+            </div>
+          `;
+          container.appendChild(paymentEl);
+        });
+      }
+      
+      document.getElementById('paymentsDescriptionList').classList.remove('hidden');
+    }
+
+    function hideAllForms() {
+      document.getElementById('actionsMenu').classList.add('hidden');
+      document.getElementById('addPaymentForm').classList.add('hidden');
+      document.getElementById('deletePaymentsList').classList.add('hidden');
+      document.getElementById('paymentsDescriptionList').classList.add('hidden');
+    }
+
     document.getElementById('prevMonth').addEventListener('click', () => {
       currentMonth--;
       if (currentMonth < 0) {
@@ -276,63 +465,58 @@
       generateCalendar(currentMonth, currentYear);
     });
 
-    // Обработчик переключения типа платежа
+    document.getElementById('addPaymentBtn').addEventListener('click', showAddForm);
+    document.getElementById('deletePaymentsBtn').addEventListener('click', showDeleteList);
+    document.getElementById('showDescriptionsBtn').addEventListener('click', showDescriptions);
+    
+    document.getElementById('cancelActions').addEventListener('click', hideOverlay);
+    document.getElementById('cancelAdd').addEventListener('click', showActionsMenu);
+    document.getElementById('cancelDelete').addEventListener('click', showActionsMenu);
+    document.getElementById('cancelDescription').addEventListener('click', showActionsMenu);
+
     document.getElementById('oneTimeOption').addEventListener('click', function() {
-      this.classList.add('bg-blue-500', 'text-white');
-      document.getElementById('recurringOption').classList.remove('bg-blue-500', 'text-white');
+      this.classList.add('active', 'bg-blue-500', 'text-white');
+      document.getElementById('recurringOption').classList.remove('active', 'bg-blue-500', 'text-white');
       document.getElementById('paymentType').value = 'one-time';
     });
 
     document.getElementById('recurringOption').addEventListener('click', function() {
-      this.classList.add('bg-blue-500', 'text-white');
-      document.getElementById('oneTimeOption').classList.remove('bg-blue-500', 'text-white');
+      this.classList.add('active', 'bg-blue-500', 'text-white');
+      document.getElementById('oneTimeOption').classList.remove('active', 'bg-blue-500', 'text-white');
       document.getElementById('paymentType').value = 'recurring';
     });
 
-    // Обработчик формы для добавления платежа
     document.getElementById('paymentForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
       const amount = parseFloat(document.getElementById('amount').value);
       const description = document.getElementById('description').value;
-      const date = document.getElementById('date').value;
       const paymentType = document.getElementById('paymentType').value;
       
       try {
         await addDoc(collection(db, "payments"), {
           amount: amount,
           description: description,
-          date: new Date(date),
           paymentType: paymentType,
+          date: selectedDate,
           createdAt: new Date()
         });
         
-        document.getElementById('paymentModal').classList.add('hidden');
         document.getElementById('paymentForm').reset();
-        generateCalendar(currentMonth, currentYear); // Обновляем календарь
+        await generateCalendar(currentMonth, currentYear);
+        showActionsMenu();
       } catch (error) {
         console.error("Error adding payment: ", error);
         alert("Ошибка при добавлении платежа");
       }
     });
 
-    // Показываем модальное окно при клике на день
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('day-content')) {
-        const day = e.target.textContent.trim();
-        const date = new Date(currentYear, currentMonth, day);
-        document.getElementById('date').valueAsDate = date;
-        document.getElementById('paymentModal').classList.remove('hidden');
+    document.getElementById('overlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('overlay')) {
+        hideOverlay();
       }
     });
 
-    // Закрываем модальное окно
-    document.getElementById('cancelPayment').addEventListener('click', () => {
-      document.getElementById('paymentModal').classList.add('hidden');
-      document.getElementById('paymentForm').reset();
-    });
-
-    // Инициализация календаря
     generateCalendar(currentDate.getMonth(), currentDate.getFullYear());
   </script>
 </body>
