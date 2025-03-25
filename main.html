@@ -3,8 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Динамический календарь</title>
+  <title>Платежный календарь</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .day-cell {
+      transition: all 0.2s ease;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+    }
+    .day-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .payment-amount {
+      margin-top: auto;
+    }
+    .day-cell:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+      z-index: 10;
+    }
+    .toggle-option {
+      transition: all 0.3s ease;
+    }
+    .toggle-option.active {
+      background-color: #3B82F6;
+      color: white;
+    }
+  </style>
 </head>
 <body class="bg-gray-50 p-4">
   <div class="max-w-md mx-auto bg-white rounded-lg shadow-md overflow-hidden">
@@ -38,7 +67,57 @@
     <div id="calendarDays" class="grid grid-cols-7 gap-1 p-2"></div>
   </div>
 
-  <script>
+  <!-- Модальное окно для добавления платежа -->
+  <div id="paymentModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center">
+    <div class="bg-white p-6 rounded-lg shadow-xl w-96">
+      <h3 class="text-xl font-semibold mb-4">Добавить платеж</h3>
+      <form id="paymentForm">
+        <div class="mb-4">
+          <label class="block text-gray-700 mb-2" for="amount">Сумма (₽)</label>
+          <input type="number" id="amount" class="w-full px-3 py-2 border rounded" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 mb-2" for="description">Описание</label>
+          <input type="text" id="description" class="w-full px-3 py-2 border rounded">
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 mb-2" for="date">Дата</label>
+          <input type="date" id="date" class="w-full px-3 py-2 border rounded" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 mb-2">Тип платежа</label>
+          <div class="flex border rounded overflow-hidden">
+            <div id="oneTimeOption" class="toggle-option flex-1 text-center py-2 cursor-pointer bg-blue-500 text-white" data-value="one-time">
+              Разовый
+            </div>
+            <div id="recurringOption" class="toggle-option flex-1 text-center py-2 cursor-pointer" data-value="recurring">
+              Постоянный
+            </div>
+          </div>
+          <input type="hidden" id="paymentType" name="paymentType" value="one-time">
+        </div>
+        <div class="flex justify-end">
+          <button type="button" id="cancelPayment" class="mr-2 px-4 py-2 bg-gray-300 rounded">Отмена</button>
+          <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-firestore.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      тут апи и креды ищи в Fire base setiings
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     // Текущая дата
     let currentDate = new Date();
     let currentMonth = currentDate.getMonth();
@@ -50,13 +129,42 @@
       'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
     ];
 
-    // Дни недели на русском
-    const daysOfWeek = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    // Форматирование даты в YYYY-MM-DD
+    function formatDate(date) {
+      const d = new Date(date);
+      let month = '' + (d.getMonth() + 1);
+      let day = '' + d.getDate();
+      const year = d.getFullYear();
+      
+      if (month.length < 2) month = '0' + month;
+      if (day.length < 2) day = '0' + day;
+      
+      return [year, month, day].join('-');
+    }
+
+    // Получаем платежи из Firebase
+    async function getPayments() {
+      const payments = {};
+      const querySnapshot = await getDocs(collection(db, "payments"));
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const date = data.date.toDate();
+        const dateString = formatDate(date);
+        payments[dateString] = {
+          amount: data.amount,
+          description: data.description,
+          paymentType: data.paymentType,
+          id: doc.id
+        };
+      });
+      return payments;
+    }
 
     // Функция для генерации календаря
-    function generateCalendar(month, year) {
+    async function generateCalendar(month, year) {
       const calendarDays = document.getElementById('calendarDays');
       const currentMonthElement = document.getElementById('currentMonth');
+      const paymentsData = await getPayments();
       
       // Устанавливаем заголовок месяца
       currentMonthElement.textContent = `${months[month]} ${year}`;
@@ -68,7 +176,7 @@
       const firstDay = new Date(year, month, 1);
       // Последний день месяца
       const lastDay = new Date(year, month + 1, 0);
-      // День недели первого дня месяца (0 - воскресенье, 1 - понедельник и т.д.)
+      // День недели первого дня месяца
       const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
       
       // Число дней в предыдущем месяце
@@ -78,20 +186,57 @@
       for (let i = firstDayOfWeek; i > 0; i--) {
         const day = prevLastDay - i + 1;
         const dayElement = document.createElement('div');
-        dayElement.className = 'text-center py-2 text-gray-400';
-        dayElement.textContent = day;
+        dayElement.className = 'text-center py-1 text-gray-400 day-cell';
+        dayElement.innerHTML = `
+          <div class="day-content">${day}</div>
+          <div class="payment-amount text-xs h-4"></div>
+        `;
         calendarDays.appendChild(dayElement);
       }
       
       // Добавляем дни текущего месяца
       for (let i = 1; i <= lastDay.getDate(); i++) {
         const dayElement = document.createElement('div');
+        const date = new Date(year, month, i);
+        const dateString = formatDate(date);
+        const payment = paymentsData[dateString];
         const isToday = i === currentDate.getDate() && 
                         month === currentDate.getMonth() && 
                         year === currentDate.getFullYear();
         
-        dayElement.className = `text-center py-2 ${isToday ? 'bg-blue-100 font-bold' : ''}`;
-        dayElement.textContent = i;
+        let paymentDisplay = '';
+        let dayClasses = 'text-center py-1 day-cell rounded';
+        
+        if (payment) {
+          paymentDisplay = `
+            <div class="payment-amount text-xs font-medium ${payment.paymentType === 'recurring' ? 'text-green-600' : 'text-red-600'}">
+              ${payment.amount.toLocaleString()} ₽
+              ${payment.paymentType === 'recurring' ? '♻️' : ''}
+            </div>
+          `;
+        } else {
+          paymentDisplay = '<div class="payment-amount text-xs h-4"></div>';
+        }
+        
+        if (isToday) {
+          dayClasses += ' bg-blue-100 font-bold';
+        }
+        
+        dayElement.className = dayClasses;
+        dayElement.innerHTML = `
+          <div class="day-content">${i}</div>
+          ${paymentDisplay}
+        `;
+        
+        // Добавляем обработчик клика
+        dayElement.addEventListener('click', () => {
+          if (payment) {
+            let paymentInfo = `Платеж: ${payment.amount} ₽\nДата: ${dateString}\nТип: ${payment.paymentType === 'recurring' ? 'Постоянный' : 'Разовый'}`;
+            if (payment.description) paymentInfo += `\nОписание: ${payment.description}`;
+            alert(paymentInfo);
+          }
+        });
+        
         calendarDays.appendChild(dayElement);
       }
       
@@ -102,8 +247,11 @@
       if (remainingDays < 7) {
         for (let i = 1; i <= remainingDays; i++) {
           const dayElement = document.createElement('div');
-          dayElement.className = 'text-center py-2 text-gray-400';
-          dayElement.textContent = i;
+          dayElement.className = 'text-center py-1 text-gray-400 day-cell';
+          dayElement.innerHTML = `
+            <div class="day-content">${i}</div>
+            <div class="payment-amount text-xs h-4"></div>
+          `;
           calendarDays.appendChild(dayElement);
         }
       }
@@ -127,7 +275,63 @@
       }
       generateCalendar(currentMonth, currentYear);
     });
-    
+
+    // Обработчик переключения типа платежа
+    document.getElementById('oneTimeOption').addEventListener('click', function() {
+      this.classList.add('bg-blue-500', 'text-white');
+      document.getElementById('recurringOption').classList.remove('bg-blue-500', 'text-white');
+      document.getElementById('paymentType').value = 'one-time';
+    });
+
+    document.getElementById('recurringOption').addEventListener('click', function() {
+      this.classList.add('bg-blue-500', 'text-white');
+      document.getElementById('oneTimeOption').classList.remove('bg-blue-500', 'text-white');
+      document.getElementById('paymentType').value = 'recurring';
+    });
+
+    // Обработчик формы для добавления платежа
+    document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const amount = parseFloat(document.getElementById('amount').value);
+      const description = document.getElementById('description').value;
+      const date = document.getElementById('date').value;
+      const paymentType = document.getElementById('paymentType').value;
+      
+      try {
+        await addDoc(collection(db, "payments"), {
+          amount: amount,
+          description: description,
+          date: new Date(date),
+          paymentType: paymentType,
+          createdAt: new Date()
+        });
+        
+        document.getElementById('paymentModal').classList.add('hidden');
+        document.getElementById('paymentForm').reset();
+        generateCalendar(currentMonth, currentYear); // Обновляем календарь
+      } catch (error) {
+        console.error("Error adding payment: ", error);
+        alert("Ошибка при добавлении платежа");
+      }
+    });
+
+    // Показываем модальное окно при клике на день
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('day-content')) {
+        const day = e.target.textContent.trim();
+        const date = new Date(currentYear, currentMonth, day);
+        document.getElementById('date').valueAsDate = date;
+        document.getElementById('paymentModal').classList.remove('hidden');
+      }
+    });
+
+    // Закрываем модальное окно
+    document.getElementById('cancelPayment').addEventListener('click', () => {
+      document.getElementById('paymentModal').classList.add('hidden');
+      document.getElementById('paymentForm').reset();
+    });
+
     // Инициализация календаря
     generateCalendar(currentDate.getMonth(), currentDate.getFullYear());
   </script>
